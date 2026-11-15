@@ -48,9 +48,15 @@ check('theme rejects unknown values', theme_current() === 'system');
 
 // Schema carries every table the plan promises.
 $schema = file_get_contents(__DIR__ . '/../sql/schema.sql');
-foreach (['users', 'remember_tokens', 'boards', 'tasks', 'task_items'] as $table) {
-    check("schema defines {$table}", str_contains($schema, "CREATE TABLE IF NOT EXISTS `{$table}`"));
+$tables = [
+    'users', 'remember_tokens', 'boards', 'board_members', 'lists', 'tasks',
+    'task_members', 'labels', 'task_labels', 'task_items', 'attachments',
+];
+foreach ($tables as $table) {
+    check("schema defines {$table}", str_contains($schema, "CREATE TABLE `{$table}`"));
 }
+check('users no longer stores a theme', !str_contains($schema, '`theme`'));
+check('cards belong to a list, not a status enum', str_contains($schema, '`list_id`'));
 
 echo PHP_EOL . ($failures === 0 ? 'all checks passed' : "{$failures} check(s) failed") . PHP_EOL;
 exit($failures === 0 ? 0 : 1);
