@@ -1,0 +1,21 @@
+# Local config — DB credentials differ per OS (Docker vs XAMPP). Never commit.
+app/config.php
+
+# Runtime uploads (avatars streamed by /avatar/{id})
+storage/avatars/*
+!storage/avatars/.gitkeep
+
+# Local tooling / editor (Figma MCP config is documented in tasks/plan.md)
+opencode.json
+.idea/
+.vscode/
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Logs and env
+*.log
+.env
+vendor/
