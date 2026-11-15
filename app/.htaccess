@@ -1,0 +1,3 @@
+# Apache (XAMPP): app/ sits below htdocs, so deny direct requests.
+# `php -S -t public` never exposes this directory in the first place.
+Require all denied

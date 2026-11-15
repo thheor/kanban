@@ -1,0 +1,2 @@
+# Apache (XAMPP): uploads are streamed by /avatar/{id}, never served directly.
+Require all denied

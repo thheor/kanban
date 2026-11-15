@@ -1,0 +1,18 @@
+# Linux development database only. Windows/XAMPP users never run this file.
+services:
+  db:
+    image: mariadb:10.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: kanban
+      MARIADB_USER: kanban
+      MARIADB_PASSWORD: kanban
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+volumes:
+  dbdata:
