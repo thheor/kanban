@@ -1,3 +1,12 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Shared page shell: document head, nav, flash messages, content slot, footer.
+ *
+ * Expects $pageTitle, $theme and $content, all prepared by public/index.php.
+ */
+?>
 <!doctype html>
 <html lang="en"<?= $theme === 'system' ? '' : ' data-bs-theme="' . e($theme) . '"' ?>>
 <head>

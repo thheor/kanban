@@ -1,7 +1,10 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Assert-based checks for the pure helpers. No test framework: `php tests/smoke.php`
- * exits non-zero on the first failing run so it can gate a commit.
+ * Assert-based checks for the helpers, the mysqli layer and the schema file.
+ * No test framework: `php tests/smoke.php` exits non-zero when a check fails,
+ * so it can gate a commit.
  */
 
 require __DIR__ . '/../app/helpers.php';

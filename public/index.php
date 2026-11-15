@@ -1,10 +1,16 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Single entry point. Every request is routed here, so auth, CSRF, and the layout
- * cannot be forgotten by an individual page.
+ * Single entry point. Every request is routed here, so session setup, CSRF and
+ * the layout cannot be forgotten by an individual page.
+ *
+ * Flow: helpers → session → route lookup → CSRF for POSTs → login guard →
+ * render the page into $content → wrap it in the layout.
  */
 
 require __DIR__ . '/../app/helpers.php';
+require __DIR__ . '/../app/db.php';
 define('BASE_PATH', base_path());
 
 session_set_cookie_params([
@@ -22,7 +28,9 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = rtrim('/' . trim(substr($uri, strlen(BASE_PATH)), '/'), '/') ?: '/';
 
-// 'METHOD /path' => [page file, requires login]
+/**
+ * Route table: 'METHOD /path' => [page file in app/pages, requires login].
+ */
 $routes = [
     'GET /' => ['dashboard', true],
     'GET /login' => ['login', false],

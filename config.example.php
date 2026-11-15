@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * Copy this file to config.php and adjust it for your machine.
  * config.php is gitignored — each developer keeps their own.
