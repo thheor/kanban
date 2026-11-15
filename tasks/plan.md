@@ -1,61 +1,61 @@
-# Implementation Plan: Kanban (native PHP + MariaDB + Bootstrap 5)
+# Implementation Plan: Kanban (Trello-style, native PHP + MariaDB + Bootstrap 5)
 
 - **Repository:** https://github.com/thheor/kanban — public, MIT licensed
 - **Design reference:** [Simple Kanban Board (Figma)](https://www.figma.com/design/sD71f85oie1rawt46fWYdI/Simple-Kanban-Board--Community-?node-id=13-1406)
 
 ## Overview
 
-A multi-board kanban app on plain PHP. One front controller enforces session auth, CSRF, and
-layout for every route. Data is `users → boards → tasks → task_items`. Full CRUD on boards,
-tasks and checklist items. Light/dark theme via Bootstrap 5.3 `data-bs-theme`. The dashboard
-carries the numbers (total / completed / incomplete / overdue) and two charts.
-
-Deployed two ways from the same code, with no conditional logic: Docker on Linux, XAMPP on
-Windows. Both developers commit to the same repository.
+A private, single-account Trello: **boards → user-defined lists → cards**, with several
+members per card, board-scoped labels, checklists, due dates, attachments, archive instead of
+delete, and light/dark mode. Server-rendered PHP with `fetch` only for drag & drop and
+inline checklists. No framework, no build step.
 
 ## Decisions
 
-- **Routing**: single front controller `public/index.php`, dispatch table, one auth guard.
-  (Not a graded assignment, so no "one file per page" constraint.)
-- **Base path**: derived at runtime from `dirname($_SERVER['SCRIPT_NAME'])`. XAMPP yields
-  `/kanban`, `php -S` yields `''`. No per-OS config.
-- **Date format**: `dd/mm/yyyy` on screen, `YYYY-MM-DD` in the DB, timezone `Asia/Jakarta`.
-- **Boards**: multiple per user, full CRUD, navbar switcher, cascade delete.
-- **Checklists**: in MVP (`task_items`) with a "2/3" progress badge on the card, as in the
-  Figma reference.
-- **Charts**: Chart.js 4 via CDN (no build step), dark-mode aware. Two charts: status
-  doughnut and a 7-day completed-tasks bar. Decided over hand-rolled CSS bars because two
-  charts are more than "a few lines" to hand-roll correctly.
-- **Dark mode**: `data-bs-theme` rendered server-side from cookie → user pref → `system`.
-  No theme flash, no custom color CSS.
-- **Uploads**: avatar only, stored in `storage/avatars/` (outside the web root) and streamed
-  by `/avatar/{id}`. `php -S` and XAMPP both serve uploads as executable if left in the web
-  root, so they never live there.
-- **Drag & drop**: HTML5 DnD → `fetch` POST with CSRF → optimistic UI, revert on error. A
-  `<select>` fallback ships in the same task for keyboard and no-JS users.
-- **Git**: trunk-based `main`, short-lived branches, conventional commits, one commit per
-  task, `.gitattributes` pins LF so Windows and Linux never fight over line endings.
+- **Routing:** one front controller (`public/index.php`) with a route table, so session
+  setup, CSRF and the layout are wired once instead of per page.
+- **Base path:** derived from `dirname($_SERVER['SCRIPT_NAME'])`. XAMPP yields `/kanban`,
+  `php -S` yields `''`, no per-OS config.
+- **Lists, not statuses:** columns are rows in `lists` (name + position), created, renamed,
+  reordered and archived per board. The status enum is gone.
+- **Completion:** each list can be flagged `is_done`. A card entering such a list gets
+  `completed_at`; leaving clears it. That is what "completed" counts mean on the dashboard.
+- **Members:** `board_members` (the owner adds existing accounts by email) plus
+  `task_members` for several assignees per card. See the open question below.
+- **Labels:** board-scoped, Trello palette, optional name, many per card through
+  `task_labels`. This replaces my earlier invented `priority` enum.
+- **Archive:** `archived_at` on boards, lists and cards. Nothing user-facing hard-deletes;
+  permanent delete lives in the archive view behind a confirmation.
+- **Attachments:** 5 MB, mime-whitelisted, stored in `storage/attachments/` and streamed by
+  `/attachment/{id}` after an ownership check. Never served from the web root.
+- **Positions:** integer `position` reindexed inside a transaction on every move
+  (Trello uses fractional floats; unnecessary at this scale).
+- **Charts:** Chart.js 4 via CDN, dark-mode aware. Status doughnut + 7-day completions bar.
+- **Theme:** cookie only (`kanban_theme`), no database column. Bootstrap 5.3
+  `data-bs-theme` is rendered server-side, `system` defers to `prefers-color-scheme`.
+- **Driver:** prepared **mysqli** through `db_all`/`db_one`/`db_insert`/`db_exec`. Values are
+  never interpolated into SQL.
+- **Comments convention:** `declare(strict_types=1)` and a file docblock in every PHP file;
+  every function documents `@param`/`@return`/`@throws`; inline comments explain only *why*.
+- **Git:** trunk-based `main`, short-lived branches, conventional commits, one commit per
+  task, LF pinned by `.gitattributes` for the Windows collaborator.
 
 ## Design reference (Figma)
 
-The source of the visual language. Read it, don't copy its numbers verbatim: lanes are fixed
-308px in the file, ours are a responsive Bootstrap grid.
+Reference only — translate geometry into Bootstrap, never paste MCP output.
 
-- Node to design against: `13:1406` in file `sD71f85oie1rawt46fWYdI`
-- Component inventory: `Card` (avatar stack / content / task list / labels, each toggleable),
-  `Label/{Grey,Lavender,Rose,Green}` lane pills, `Tag/{Pink,Grey,Green}` chips,
-  `Checkbox/{Unchecked,Checked}` with struck-through text, `Avatar`/`Vic` 18px with an SVG mask.
+- Node: `13:1406` in file `sD71f85oie1rawt46fWYdI`
+- Inventory: `Card` (avatar stack / description / checklist / labels), `Label/*` lane pills,
+  `Tag/*` chips, `Checkbox/*` with struck-through text, 18px avatars with an SVG mask.
 - Tokens: Black `#212121`, Grey `#4D4D4D`, Dark Grey `#5A5A65`, Light Grey `#E1E4E8`,
-  Lavender `#F0E7F6`, Rose `#FFDCE0`, Green `#CBDFD8`. Type: board title SF Compact Display
-  Bold 32, card title SF Pro Text Semibold 16, label 14/500, body 14/400.
-- Mapping into this stack: lane pill → `status`, `Tag/*` → priority / due badge, card task
-  list → `task_items`. Fonts stay at Bootstrap/system defaults; the file's SF fonts aren't
-  worth licensing.
+  Lavender `#F0E7F6`, Rose `#FFDCE0`, Green `#CBDFD8`; board title SF Compact Display 32,
+  card title SF Pro Text Semibold 16, label 14/500, body 14/400.
+- Mapping: lane pill → `lists` row, `Tag/*` → `labels`, card checklist → `task_items`,
+  avatar stack → `task_members`. Fonts stay at Bootstrap/system defaults.
 
 ### Figma MCP
 
-`opencode.json` is gitignored because it holds machine-local tooling, so recreate it at the
-repo root to let an agent read the design directly:
+`opencode.json` is gitignored (machine-local tooling), so recreate it at the repo root:
 
 ```json
 {
@@ -67,237 +67,221 @@ repo root to let an agent read the design directly:
 }
 ```
 
-Authenticate once in OpenCode, then ask for the file by URL. Useful calls: `get_metadata`
-(layer tree), `get_screenshot` (the visual target), `get_variable_defs` (the token list
-above), `get_design_context` (per-node code — pass a child node id; the top-level canvas can
-be rejected when nothing is selected in the Figma desktop app).
-
-Rule: MCP output is a reference. It emits React + Tailwind, ours is PHP + Bootstrap, so
-translate geometry into Bootstrap classes and never paste the generated markup.
+Authenticate once in OpenCode, then pass the file URL. Useful calls: `get_metadata` (layer
+tree), `get_screenshot` (visual target), `get_variable_defs` (tokens), `get_design_context`
+(per-node code — pass a child id; the canvas can be rejected when nothing is selected in
+the desktop app).
 
 ## Environments
 
 ### Linux (Docker)
 
 ```bash
-docker compose up -d                 # mariadb:10.4 on 127.0.0.1:3307, db kanban, kanban/kanban
-mysql -h127.0.0.1 -P3307 -ukanban -pkanban kanban < sql/schema.sql
-php -S 127.0.0.1:8000 -t public      # http://127.0.0.1:8000
+docker compose up -d                 # mariadb:10.4 on 127.0.0.1:3307
+cp config.example.php app/config.php
+php -S 127.0.0.1:8000 -t public
 ```
 
-Port 3307 so a future local MySQL install cannot clash.
+`sql/schema.sql` is imported automatically when the volume is first created; re-import by
+hand with `mysql -h127.0.0.1 -P3307 -ukanban -pkanban < sql/schema.sql`. If the Docker
+daemon needs `sudo`, the same image runs under podman (command in README).
 
-### Windows (XAMPP — no Docker)
+### Windows (XAMPP)
 
-1. Clone the repo into `C:\xampp\htdocs\kanban`.
-2. XAMPP Control Panel → start **Apache** and **MySQL**.
-3. `http://localhost/phpmyadmin` → Import → `sql/schema.sql` (creates database `kanban`).
-4. `cp config.example.php config.php`, then set `DB_PORT` `3306`, `DB_USER` `root`,
-   `DB_PASS` `''` (XAMPP defaults).
-5. Open `http://localhost/kanban`.
-
-`docker-compose.yml` is never used on Windows. `sql/schema.sql` is the only schema source;
-nobody hand-edits tables in phpMyAdmin.
+Clone into `C:\xampp\htdocs\kanban`, start Apache + MySQL, import `sql/schema.sql` in
+phpMyAdmin, set `app/config.php` to port `3306`, user `root`, empty password, then open
+`http://localhost/kanban`. No Docker.
 
 ## Data model
 
-```sql
-users(id, name, email UNIQUE, password_hash, avatar_path NULL,
-      theme ENUM('light','dark','system') DEFAULT 'system',
-      failed_logins TINYINT DEFAULT 0, locked_until DATETIME NULL,
-      created_at, updated_at)
-
-remember_tokens(id, user_id FK, selector CHAR(24) UNIQUE, validator_hash CHAR(64),
-                expires_at, created_at)
-
-boards(id, user_id FK, name, description NULL, position INT, created_at, updated_at)
-
-tasks(id, board_id FK, title, description NULL,
-      status ENUM('not_started','in_progress','blocked','done') DEFAULT 'not_started',
-      priority ENUM('low','normal','high') DEFAULT 'normal',
-      due_date DATE NULL, position INT, completed_at DATETIME NULL,
-      created_at, updated_at)
-
-task_items(id, task_id FK, title, is_done TINYINT(1) DEFAULT 0, position INT)
+```
+users           id, name, email UQ, password_hash, avatar_path, pronouns, job_title,
+                department, about, role ENUM('owner','member'), failed_logins, locked_until
+remember_tokens id, user_id, selector UQ, validator_hash, expires_at
+boards          id, user_id (owner), name, description, assignee_id, due_date, position, archived_at
+board_members   board_id, user_id, role ENUM('admin','member')          PK(board_id,user_id)
+lists           id, board_id, name, position, is_done, archived_at
+tasks           id, board_id, list_id, title, description, due_date, position,
+                completed_at, archived_at
+task_members    task_id, user_id                                          PK(task_id,user_id)
+labels          id, board_id, name, color ENUM(10 Trello colours), position
+task_labels     task_id, label_id                                         PK(task_id,label_id)
+task_items      id, task_id, title, is_done, position
+attachments     id, task_id, user_id, original_name, stored_name, mime, size_bytes
 ```
 
-InnoDB, `utf8mb4_unicode_ci`, `ON DELETE CASCADE`, portable SQL only (the Windows XAMPP runs
-MariaDB 10.4 — no MySQL-8-only syntax). Indexes: `(user_id)`,
-`(board_id, status, position)`, `(due_date)`, `(task_id, position)`.
+InnoDB, `utf8mb4_unicode_ci`, portable SQL only (XAMPP is MariaDB 10.4).
+
+**Invariants the schema cannot enforce, so the app validates on save:**
+- `tasks.board_id` must equal `lists.board_id` for the card's list.
+- Every `task_labels.label_id` and `task_members.user_id` must belong to the card's board.
+- `tasks.list_id` is `ON DELETE RESTRICT`: a list holding cards cannot be dropped. Archive
+  it, or move its cards first.
 
 ## Routes
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET/POST | `/login` | – | sign in |
-| GET/POST | `/signup` | – | register + seed default board |
+| GET/POST | `/signup` | – | register, seeds one board + three lists |
 | POST | `/logout` | ✔ | destroy session + remember cookie |
-| GET | `/dashboard` | ✔ | summary, charts, due today / overdue |
-| GET | `/board?id=` | ✔ | kanban, 4 lanes |
-| POST | `/tasks/status` | ✔ | DnD status/position update (fetch) |
-| GET | `/tasks` | ✔ | filterable table (board, status, search, overdue) |
-| POST | `/tasks/save` | ✔ | create + update |
-| POST | `/tasks/delete` | ✔ | delete |
-| POST | `/tasks/toggle` | ✔ | complete / uncomplete |
-| POST | `/items/save` · `/items/toggle` · `/items/delete` | ✔ | checklist CRUD |
-| GET | `/calendar?board=&month=YYYY-MM` | ✔ | month grid |
-| POST | `/boards/save` · `/boards/delete` | ✔ | board CRUD |
-| GET/POST | `/profile` | ✔ | name/email, password, avatar |
-| GET/POST | `/settings` | ✔ | theme pref, change password, delete account |
+| GET | `/` `/dashboard` | ✔ | counts, due today, overdue, charts |
+| GET | `/board?id=` | ✔ | kanban view of the board's cards |
+| GET | `/tasks?board=&list=&label=&member=&q=&due=` | ✔ | same cards as a table |
+| POST | `/tasks/save` | ✔ | create + update a card |
+| POST | `/tasks/move` | ✔ | DnD: list + position |
+| POST | `/tasks/archive` · `/tasks/restore` · `/tasks/delete` | ✔ | archive lifecycle |
+| POST | `/lists/save` · `/lists/move` · `/lists/archive` | ✔ | list CRUD |
+| POST | `/boards/save` · `/boards/archive` | ✔ | board CRUD |
+| POST | `/boards/members` | ✔ | add/remove members by email |
+| POST | `/labels/save` · `/labels/delete` | ✔ | board label set |
+| POST | `/items/save` · `/items/toggle` · `/items/delete` | ✔ | checklist |
+| POST | `/attachments/upload` · `/attachments/delete` | ✔ | files |
+| GET | `/attachment/{id}` | ✔ | streams one file after an ownership check |
+| GET | `/calendar?board=&month=YYYY-MM` | ✔ | month grid on `due_date` |
+| GET/POST | `/profile` | ✔ | name, pronouns, job title, department, about, avatar |
+| GET/POST | `/settings` | ✔ | password change, delete account |
 | GET | `/avatar/{id}` | – | streams `storage/avatars/*` |
 
 ## File layout
 
 ```
-docker-compose.yml          mariadb:10.4 + volume (Linux only)
-.gitignore  .gitattributes  config.example.php  README.md
-sql/schema.sql              single source of truth, phpMyAdmin-importable
-sql/seed.sql                demo data (T16)
-public/index.php            router + auth guard + CSRF + dispatch
-public/assets/app.css       only what Bootstrap cannot do (~80 lines)
-public/assets/app.js        theme toggle, DnD, chart bootstrapping
-app/config.php              (gitignored)
-app/db.php                  PDO, ERRMODE_EXCEPTION, prepared statements only
-app/auth.php                current_user, require_login, login/logout, remember-me
-app/helpers.php             e(), url(), redirect(), flash(), csrf_*, date helpers
-app/pages/{login,signup,dashboard,board,tasks,calendar,profile,settings}.php
-app/views/layout.php        nav, flash, theme attribute, Bootstrap + Chart.js CDN
-storage/avatars/            (gitignored, keeps .gitkeep)
-tests/smoke.php             assertions: e(), url() base path, upload validation, date format
+public/index.php          router: dispatch, CSRF, login guard, render
+public/assets/app.js      theme toggle, drag & drop, inline checkbox/checklist
+public/assets/app.css     only what Bootstrap cannot express (lanes, card strips)
+app/config.php            gitignored, per-machine credentials
+app/db.php                mysqli connection + query helpers
+app/auth.php              current_user, require_login, permissions
+app/helpers.php           e(), url(), redirect(), flash, CSRF, theme
+app/pages/                one file per route (login, signup, dashboard, board, tasks, ...)
+app/views/layout.php      shell; views/tasks-board.php + views/tasks-list.php for the two views
+sql/schema.sql            single source of truth
+storage/avatars/          uploads, streamed through PHP
+storage/attachments/      uploads, streamed through PHP
+tests/smoke.php           assert-based checks
+tasks/                    this plan + todo.md
 ```
 
 ## Dashboard
 
-Counts from one conditional-aggregation query: total, completed, incomplete, overdue
-(`due_date < CURDATE() AND status <> 'done'`). Lists: due today and overdue (top 5 each).
-Charts: doughnut of tasks by status, bar of tasks completed per day over the last 7 days.
-Board filter dropdown, defaulting to all boards.
+Counts: total cards, completed (`completed_at IS NOT NULL`), open, overdue
+(`due_date < CURDATE() AND completed_at IS NULL`). Lists: due today, overdue (top 5).
+Charts: cards by list (doughnut), cards completed per day over 7 days (bar). Board filter,
+default all boards.
 
 ## Git workflow
 
-Two committers (Linux + Windows) on one repository, so the rules are slightly stricter than
-solo work.
+Two committers, one repository.
 
-- `git init` in T1; `.gitignore` and `.gitattributes` land in the very first commit.
-- **Trunk-based.** `main` is always runnable. If both of you are working the same day, each
-  takes a separate task and a separate short-lived branch:
-  `feature/t<N>-<slug>` → merge back within 1–3 days → delete the branch.
-- **One task = one branch = one commit set.** Never two tasks in one commit, never a
-  formatting-only change mixed with behavior.
-- **Before every push:** `git pull --rebase origin main`. Never force-push `main`.
-- Message format `<type>(t<N>): <what>`, blank line, then a body explaining **why**.
+- Trunk-based: `main` always runnable. Parallel work takes `feature/t<N>-<slug>` and merges
+  back within 1–3 days.
+- One task = one commit set. Format `<type>(t<N>): <what>`, body explains **why**.
   Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
 - Commit only when `php -l` is clean, `php tests/smoke.php` passes, and the task's manual
-  check passed.
-- No secrets: `app/config.php` and `opencode.json` are gitignored from day one. Windows needs
-  its own `config.php` with the XAMPP credentials; neither file is ever committed.
-- `.gitignore`: `app/config.php`, `opencode.json`, `storage/avatars/*`,
-  `!storage/avatars/.gitkeep`, `vendor/`, `*.log`, `.idea/`, `.vscode/`, `Thumbs.db`,
-  `desktop.ini`, `.env`.
-- `.gitattributes`: `* text=auto eol=lf`, plus `*.png binary`, `*.jpg binary`. On Windows also
-  run `git config --global core.autocrlf false` so the attribute file is the only authority.
-- No tags or `CHANGELOG.md` while this is a private, undeployed project. Once it is deployed,
-  tag `v1.0.0` and keep a changelog grouped by Added / Changed / Fixed.
-- **Conflict habit:** `sql/schema.sql` and `app/pages/*.php` are the likely collision points.
-  Assign pages so no two people edit the same file in the same week; if a conflict hits
-  `schema.sql`, the resolution is a re-import on both machines, never a hand merge.
+  check passed. `git pull --rebase` before pushing; never force-push `main`.
+- `app/config.php` and `opencode.json` are gitignored; neither ever reaches the remote.
+- `.gitattributes` pins `eol=lf`; on Windows also set `core.autocrlf false`.
+- Schema changes are commits to `sql/schema.sql`. Nobody hand-edits phpMyAdmin.
+- No tags or `CHANGELOG.md` until the app is deployed; then tag `v1.0.0`.
 
 ## Tasks
 
-### Phase 0 — Foundation
+### Done
 
-- [x] **T1 Repo, scaffold, schema, both environments** — `git init`, `.gitignore`,
-  `.gitattributes`, `config.example.php`, `db.php`, `helpers.php`, `sql/schema.sql`,
-  `docker-compose.yml`, README with both setup paths.
-  *AC:* schema imports in Docker **and** phpMyAdmin; PDO connects on both; DB errors log and
-  never print; first commit holds scaffolding only.
-  *Files:* ~10 new. *Scope:* M. *Deps:* none.
-- [x] **T2 Router, layout, base path** — dispatch, 404 page, nav, flash, CDN tags, `url()`
-  honoring `/kanban`.
-  *AC:* `/login` and `/signup` render inside the layout; unknown path → 404; every generated
-  link works under `http://127.0.0.1:8000/` and `http://localhost/kanban/`.
-  *Scope:* S. *Deps:* T1.
-- [x] **T3 Theme** — `data-bs-theme` from cookie → user pref → system; toggle writes the
-  cookie and, when logged in, the user pref.
-  *AC:* persists across reload, no theme flash, works logged out.
-  *Scope:* S. *Deps:* T2.
+- [x] **T1** Repo, scaffold, schema, Docker/XAMPP setup
+- [x] **T2** Router, layout, base path
+- [x] **T3** Light/dark theme (cookie)
+- [x] **T4** Schema v2: lists, labels, members, attachments, archive
+- [x] **T5** mysqli helpers replacing PDO
+- [x] **T6** PHPDoc + `strict_types` convention pass
 
-> **Checkpoint 1** — app boots in both environments, theme persists, links correct under `/kanban`.
+> **Checkpoint 1** — boots on both base paths, schema imports, theme persists. Verified.
 
-### Phase 1 — Auth & session
+### Phase 1 — Auth, permissions, profile
 
-- [ ] **T4 Signup** — validation, `password_hash`, unique email, PRG, auto-login, seed board.
-  *AC:* duplicate email → field error; no plain-text password stored; new user lands on
-  `/dashboard` with one board. *Scope:* M. *Deps:* T2, T3.
-- [ ] **T5 Login/logout + throttle** — `password_verify`, `session_regenerate_id(true)`,
-  generic errors, 5 failures → 15-minute lock, full session destroy on logout.
-  *AC:* the error never reveals which field is wrong; the 6th attempt is locked; logged-out
-  `/board` redirects to `/login`. *Scope:* M. *Deps:* T4.
-- [ ] **T6 Remember me** — selector/validator cookie, 30 days, rotated on use, revoked on
-  logout and on password change.
-  *AC:* a stolen DB row alone cannot forge the cookie; an expired token falls back to login.
-  *Scope:* S. *Deps:* T5.
-- [ ] **T7 Guard, ownership, profile, avatar** — `require_login`, `own_board/own_task/own_item`,
-  profile updates, avatar upload (`finfo` jpg/png/webp, ≤2 MB, random name, old file unlinked).
-  *AC:* a `.php` renamed to `.jpg` is rejected; avatar served only through `/avatar/{id}`;
-  other users' boards/tasks/items return 404, never data. *Scope:* M. *Deps:* T5.
+- [ ] **T7 Signup** — validate name/email/password, `password_hash`, PRG, auto-login, seed one
+  board with three lists (To do / Doing / Done, the last flagged `is_done`).
+  *AC:* duplicate email → field error; no plain-text password; new user lands on a usable
+  board. *Deps:* T6. *M*
+- [ ] **T8 Login + throttle** — `password_verify`, `session_regenerate_id(true)`, generic
+  errors, 5 failures → 15-minute `locked_until`, full teardown on logout.
+  *AC:* error never names the wrong field; 6th attempt locked; guest on a protected route
+  redirects to `/login`. *Deps:* T7. *M*
+- [ ] **T9 Remember me** — selector/validator cookie, 30 days, rotate on use, revoke on
+  logout and password change. *AC:* DB leak alone cannot forge the cookie; expired token
+  falls back to login. *Deps:* T8. *S*
+- [ ] **T10 Permissions + ownership** — `require_board($id)` style guards: owner or
+  `board_members` row, and every card/list/label/attachment resolved through its board.
+  *AC:* a second account gets 404 on another user's board, card, attachment and avatar id;
+  one helper, used by every route. *Deps:* T8. *M*
+- [ ] **T11 Profile** — avatar upload (`finfo`, jpg/png/webp, ≤2 MB, random name, old file
+  unlinked) plus name, pronouns, job title, department, about.
+  *AC:* `.php` renamed `.jpg` rejected; avatar served only through `/avatar/{id}`, never
+  directly; empty optional fields stay null, not `''`. *Deps:* T9. *M*
 
-> **Checkpoint 2** — signup → logout → remember-me → profile → password change; two accounts
-> are fully isolated.
+### Phase 2 — Boards, lists, cards
 
-### Phase 2 — Boards, tasks, checklists
+- [ ] **T12 Boards CRUD + archive** — dashboard grid, create/rename/delete, switcher,
+  `assignee_id`, board `due_date`.
+  *AC:* archive hides the board without losing cards; counts scoped to visible boards.
+  *Deps:* T10. *M*
+- [ ] **T13 Board members** *(only if the multi-assignee model stays)* — add an existing
+  account by email, remove, prompt before removing someone who holds cards.
+  *AC:* only the owner or a board admin can change members; a non-member cannot be assigned.
+  *Deps:* T10, T12. *M*
+- [ ] **T14 Lists CRUD** — create, rename, reorder, archive, toggle `is_done`.
+  *AC:* reorder rewrites positions in one transaction; archiving keeps cards; a non-empty
+  list cannot be hard-deleted (RESTRICT backs this up). *Deps:* T12. *M*
+- [ ] **T15 Cards CRUD + archive** — title, description, list, due date, members, labels.
+  *AC:* server re-validates every field and the list→board invariant; entering a done list
+  sets `completed_at`; archive and restore both keep the card's checklist and files.
+  *Deps:* T14, T13. *M*
+- [ ] **T16 Labels** — board label set (name optional, colour, position), assign many per
+  card. *AC:* a label from another board is rejected server-side; deleting a label removes
+  its card links. *Deps:* T15. *S*
+- [ ] **T17 Board view + list view** — one page, two templates: kanban with drag & drop
+  (`/tasks/move`), table with filters (list, label, member, `q`, overdue).
+  *AC:* a drag survives reload and reverts on a failed request; both views respect the same
+  filters; positions never collide inside a list. *Deps:* T15, T16. *M*
+- [ ] **T18 Checklists** — `task_items` CRUD, inline toggle, `2/3` badge on the card.
+  *AC:* toggling updates the badge without a reload; deleting a card deletes its items.
+  *Deps:* T15. *M*
+- [ ] **T19 Attachments** — upload (5 MB, mime whitelist), download, delete.
+  *AC:* files land outside the web root; `/attachment/{id}` checks board membership before
+  streaming; a wrong mime is rejected even with a forged extension. *Deps:* T15. *M*
+- [ ] **T20 Dashboard** — 4 counts, due today, overdue, two charts, board filter.
+  *AC:* numbers match the filtered table view; one query per widget; charts re-render in
+  dark mode; empty state for a new account. *Deps:* T19. *M*
 
-- [ ] **T8 Boards CRUD** — dashboard grid with counts, create/rename/delete, navbar switcher.
-  *AC:* deleting a board cascades its tasks and items; every query is scoped by `user_id`;
-  the switcher keeps you on the current page. *Scope:* M. *Deps:* T7.
-- [ ] **T9 Tasks CRUD** — Bootstrap modal create/edit, delete confirm, toggle done (title,
-  description, board, status, priority, due_date).
-  *AC:* the server re-validates every field; PRG prevents duplicate submit; `completed_at`
-  follows status. *Scope:* M. *Deps:* T8.
-- [ ] **T10 Task list** — table with filters (board, status, overdue, search) and sort,
-  `dd/mm` dates, overdue badge.
-  *AC:* filters compose in the query string and survive reload; empty state renders.
-  *Scope:* S. *Deps:* T9.
-- [ ] **T11 Kanban board + DnD** — 4 lanes, cards with title/description/priority badge/due
-  tag/checklist progress, lane counts, DnD via fetch, `<select>` fallback.
-  *AC:* a drag persists after reload; a failed request reverts the card; `position` reindexes
-  so no lane ever holds duplicate positions. *Scope:* M. *Deps:* T9.
-- [ ] **T12 Checklists** — `task_items` CRUD inside the task modal, inline toggle, "2/3" badge
-  on the card.
-  *AC:* toggling updates progress without a page reload; deleting a task deletes its items; a
-  task with no items hides the badge. *Scope:* M. *Deps:* T9, T11.
-- [ ] **T13 Dashboard summary + charts** — 4 counts, due-today and overdue lists, status
-  doughnut, 7-day completions bar.
-  *AC:* counts match the task list for the same filter; one query per widget (no N+1); charts
-  re-render correctly in dark mode; a new user sees zeros, not errors.
-  *Scope:* M. *Deps:* T9, T12.
+> **Checkpoint 2** — two accounts are fully isolated; every card operation survives a
+> reload; dashboard numbers reconcile with the table.
 
-> **Checkpoint 3** — full CRUD on boards/tasks/items, drag persists, both accounts isolated,
-> dashboards differ per user.
+### Phase 3 — Remaining routes
 
-### Phase 3 — Remaining routes & polish
-
-- [ ] **T14 Calendar** — month grid, prev/next, tasks placed on `due_date`, click opens the
-  task modal.
-  *AC:* December → January and leap-year math correct; no off-by-one day under `Asia/Jakarta`.
-  *Scope:* M. *Deps:* T9.
-- [ ] **T15 Settings** — theme preference, change password (revokes remember tokens), delete
-  account (typed confirmation, cascade, session killed).
-  *AC:* the DB theme wins over the cookie after login; a deleted account leaves no rows
-  anywhere. *Scope:* S. *Deps:* T6, T8.
-- [ ] **T16 Polish, seed, handoff** — 403/404, empty states, focus rings, dark-mode contrast
-  pass, `sql/seed.sql` demo data, README final, `tests/smoke.php` green, `.gitignore` audit.
-  *AC:* a fresh clone runs from the README alone on both OSes; `git status` clean; smoke tests
-  pass. *Scope:* S. *Deps:* all.
+- [ ] **T21 Calendar** — month grid on `due_date`, prev/next, click opens the card panel.
+  *AC:* year boundary and leap day correct; no off-by-one under `Asia/Jakarta`.
+  *Deps:* T15. *M*
+- [ ] **T22 Settings** — change password (revokes remember tokens), delete account
+  (typed confirmation, cascade, session killed). *AC:* no orphan rows after deletion; the
+  theme cookie survives the logout. *Deps:* T9, T12. *S*
+- [ ] **T23 Polish, seed, handoff** — 403/404, empty states, focus rings, dark-mode contrast,
+  `sql/seed.sql`, README final, smoke green. *AC:* a fresh clone runs from the README on
+  both OSes; `git status` clean. *Deps:* all. *S*
 
 ## Risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Windows/Linux CRLF churn | Med | `.gitattributes` `eol=lf` in the first commit; `core.autocrlf false` on Windows |
-| MariaDB version drift (XAMPP vs `mariadb:10.4`) | Med | Portable SQL only; `schema.sql` is the sole source |
-| Uploads executable under XAMPP | High | Stored outside the web root, streamed via PHP, `finfo` + whitelist |
-| CSRF missed on fetch endpoints | High | Token in `<meta>`; the router enforces `csrf_check()` on every POST |
-| DnD unusable without JS | Low | `<select>` fallback ships with T11 |
-| Two committers, one schema | Med | Nobody hand-edits phpMyAdmin; schema changes are commits; conflicts resolved by re-import |
-| Same-file collisions between the two of you | Med | One owner per file per week; branches merge within 1–3 days |
+| Permission bug exposes another account's board | **High** | Single `require_board()` chokepoint (T10) before any board UI; every card query joins through its board |
+| Attachments served or executed from the web root | **High** | `storage/`, PHP streaming route, mime whitelist, `finfo` |
+| CSRF missed on the `fetch` endpoints | High | Token in `<meta>`, router enforces it on every POST |
+| Windows/Linux CRLF churn | Med | `.gitattributes` `eol=lf`, `core.autocrlf false` |
+| MariaDB drift (XAMPP vs image) | Med | Portable SQL, `schema.sql` as the only source |
+| Multi-assignee with one account per board | Med | `board_members` exists in schema; T13 decides whether it becomes real (see open question) |
+
+## Open question
+
+**Board sharing.** `board_members` and `task_members` are in the schema, but nothing writes
+to them yet. Multi-assignee and `users.role` only mean something if other accounts can join a
+board (option A: add members by email). Otherwise the honest fallback is a single
+`tasks.assignee_id` (option C) and the member tables get dropped. Decide before T13.
