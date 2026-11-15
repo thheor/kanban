@@ -206,18 +206,18 @@ solo work.
 
 ### Phase 0 — Foundation
 
-- [ ] **T1 Repo, scaffold, schema, both environments** — `git init`, `.gitignore`,
+- [x] **T1 Repo, scaffold, schema, both environments** — `git init`, `.gitignore`,
   `.gitattributes`, `config.example.php`, `db.php`, `helpers.php`, `sql/schema.sql`,
   `docker-compose.yml`, README with both setup paths.
   *AC:* schema imports in Docker **and** phpMyAdmin; PDO connects on both; DB errors log and
   never print; first commit holds scaffolding only.
   *Files:* ~10 new. *Scope:* M. *Deps:* none.
-- [ ] **T2 Router, layout, base path** — dispatch, 404 page, nav, flash, CDN tags, `url()`
+- [x] **T2 Router, layout, base path** — dispatch, 404 page, nav, flash, CDN tags, `url()`
   honoring `/kanban`.
   *AC:* `/login` and `/signup` render inside the layout; unknown path → 404; every generated
   link works under `http://127.0.0.1:8000/` and `http://localhost/kanban/`.
   *Scope:* S. *Deps:* T1.
-- [ ] **T3 Theme** — `data-bs-theme` from cookie → user pref → system; toggle writes the
+- [x] **T3 Theme** — `data-bs-theme` from cookie → user pref → system; toggle writes the
   cookie and, when logged in, the user pref.
   *AC:* persists across reload, no theme flash, works logged out.
   *Scope:* S. *Deps:* T2.

@@ -6,10 +6,10 @@ Legend: `[ ]` todo · `[x]` done. One task = one branch = one commit set:
 
 ## Phase 0 — Foundation
 
-- [ ] **T1** Repo + scaffold + schema + Docker/XAMPP setup · M · deps: none
-- [ ] **T2** Router + layout + base path (`/kanban`) · S · deps: T1
-- [ ] **T3** Light/dark theme (cookie + user pref) · S · deps: T2
-- [ ] **Checkpoint 1** boots on both OSes, theme persists, links right
+- [x] **T1** Repo + scaffold + schema + Docker/XAMPP setup · M · deps: none
+- [x] **T2** Router + layout + base path (`/kanban`) · S · deps: T1
+- [x] **T3** Light/dark theme (cookie + user pref) · S · deps: T2
+- [x] **Checkpoint 1** boots on both OSes, theme persists, links right
 
 ## Phase 1 — Auth & session
 
