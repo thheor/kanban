@@ -43,6 +43,7 @@ if ($page === '404') {
     require_login();
 }
 
+$theme = theme_current();
 $pageTitle = ucfirst($page);
 ob_start();
 require __DIR__ . '/../app/pages/' . $page . '.php';

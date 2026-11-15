@@ -45,6 +45,17 @@ function csrf_token(): string
     return $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 }
 
+/**
+ * Cookie wins, then 'system'. T15 syncs the logged-in user's stored preference
+ * into the same cookie so this stays a single read.
+ */
+function theme_current(): string
+{
+    $theme = $_COOKIE['kanban_theme'] ?? 'system';
+
+    return in_array($theme, ['light', 'dark', 'system'], true) ? $theme : 'system';
+}
+
 function csrf_check(): void
 {
     $sent = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';

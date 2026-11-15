@@ -36,6 +36,16 @@ check('e() turns null into an empty string', e(null) === '');
 check('csrf_token is stable', csrf_token() === csrf_token());
 check('csrf_token is 32 random bytes', preg_match('/^[0-9a-f]{64}$/', csrf_token()) === 1);
 
+// Theme: cookie drives the rendered data-bs-theme, unknown values fall back to system.
+$_COOKIE = [];
+check('theme defaults to system', theme_current() === 'system');
+
+$_COOKIE['kanban_theme'] = 'dark';
+check('theme reads the cookie', theme_current() === 'dark');
+
+$_COOKIE['kanban_theme'] = 'neon';
+check('theme rejects unknown values', theme_current() === 'system');
+
 // Schema carries every table the plan promises.
 $schema = file_get_contents(__DIR__ . '/../sql/schema.sql');
 foreach (['users', 'remember_tokens', 'boards', 'tasks', 'task_items'] as $table) {

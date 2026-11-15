@@ -28,6 +28,19 @@ re-import by hand:
 mysql -h127.0.0.1 -P3307 -ukanban -pkanban < sql/schema.sql
 ```
 
+If the Docker daemon needs `sudo` on your machine and you keep podman around instead, the
+same image works:
+
+```bash
+podman run -d --name kanban-db -e MARIADB_DATABASE=kanban -e MARIADB_USER=kanban \
+  -e MARIADB_PASSWORD=kanban -e MARIADB_ROOT_PASSWORD=root -p 3307:3306 \
+  -v "$PWD/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,Z" \
+  docker.io/library/mariadb:10.4
+```
+
+If edits stop showing up while `php -S` is running, CLI opcache is holding files for up to
+180s — restart the server or add `-d opcache.enable_cli=0`.
+
 ## Setup — Windows (XAMPP)
 
 1. Clone into `C:\xampp\htdocs\kanban`.
