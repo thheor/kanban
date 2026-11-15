@@ -5,6 +5,7 @@
  */
 
 require __DIR__ . '/../app/helpers.php';
+require __DIR__ . '/../app/db.php';
 define('BASE_PATH', '');
 
 $failures = 0;
@@ -45,6 +46,13 @@ check('theme reads the cookie', theme_current() === 'dark');
 
 $_COOKIE['kanban_theme'] = 'neon';
 check('theme rejects unknown values', theme_current() === 'system');
+
+// mysqli layer: the driver, plus mysqlnd which db_all()/db_one() need for get_result().
+check('mysqli extension loaded', extension_loaded('mysqli'));
+check('mysqlnd extension loaded', extension_loaded('mysqlnd'));
+foreach (['db', 'db_stmt', 'db_all', 'db_one', 'db_insert', 'db_exec'] as $helper) {
+    check("db helper {$helper}() exists", function_exists($helper));
+}
 
 // Schema carries every table the plan promises.
 $schema = file_get_contents(__DIR__ . '/../sql/schema.sql');

@@ -6,12 +6,12 @@ Native PHP 8 + MariaDB + Bootstrap 5, no framework, no build step.
 
 ## Requirements
 
-- PHP 8.1+ with `pdo_mysql`, `fileinfo`, `mbstring`
+- PHP 8.1+ with `mysqli`, `mysqlnd`, `fileinfo`, `mbstring`
 - MariaDB 10.4+ (ships with XAMPP) or Docker
 
-Check the driver before anything else: `php -m | grep pdo_mysql`. Arch Linux ships the
-extension commented out in `php.ini`; enable it there or run PHP with
-`-d extension=pdo_mysql`.
+Check the driver before anything else: `php -m | grep -E 'mysqli|mysqlnd'`. Both are on
+XAMPP out of the box; on Arch the `mysqli` extension ships commented out in `php.ini` —
+enable it there, or run PHP with `-d extension=mysqli`.
 
 ## Setup — Linux (Docker)
 
@@ -61,7 +61,7 @@ public/            web root — the only directory the browser may reach
   assets/app.js    theme toggle, later drag & drop
 app/
   config.php       gitignored, per-machine credentials
-  db.php           PDO
+  db.php           mysqli connection and query helpers
   auth.php         session guard
   helpers.php      e(), url(), redirect(), flash, CSRF
   pages/           one file per route
